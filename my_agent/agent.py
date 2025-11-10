@@ -1,4 +1,58 @@
 from google.adk.agents.llm_agent import Agent
+import subprocess
+import platform
+
+def ping_test(ip_address: str) -> dict:
+    """Ping an IP address and return reachability and stats."""
+    param = "-n" if platform.system().lower() == "windows" else "-c"
+    command = ["ping", param, "4", ip_address]
+
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        output = result.stdout
+        error = result.stderr
+
+        # Basic success detection
+        reachable = "TTL=" in output or "ttl=" in output
+
+        packet_loss = None
+        avg_latency = None
+
+        if platform.system().lower() == "windows":
+            # Example lines to look for: "Packets: Sent = 4, Received = 4, Lost = 0 (0% loss)"
+            for line in output.splitlines():
+                if "Packets:" in line:
+                    packet_loss = line.strip()
+                if "Average =" in line:
+                    avg_latency = line.strip()
+        else:
+            # Example for Linux: "4 packets transmitted, 4 received, 0% packet loss, time 4004ms"
+            for line in output.splitlines():
+                if "packet loss" in line:
+                    packet_loss = line.strip()
+                if "rtt min/avg/max" in line:
+                    avg_latency = line.strip()
+
+        return {
+            "reachable": reachable,
+            "packet_loss": packet_loss,
+            "avg_latency": avg_latency,
+            "stdout": output.strip(),
+            "stderr": error.strip(),
+        }
+
+    except subprocess.TimeoutExpired:
+        return {"reachable": False, "error": "Ping timed out"}
+    except Exception as e:
+        return {"reachable": False, "error": str(e)}
+
+
 
 root_agent = Agent(
     model='gemini-2.5-flash',
@@ -48,4 +102,5 @@ Skills and Qualifications
 ·        Demonstrated passion, desire and dedication for ongoing training, development etc
 
 ·        Ability to work independently and able to work in team environment''',
+    tools = [ping_test]
 )
