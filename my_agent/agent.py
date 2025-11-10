@@ -1,6 +1,8 @@
+import os
 from google.adk.agents.llm_agent import Agent
 import subprocess
 import platform
+import requests
 
 def ping_test(ip_address: str) -> dict:
     """Ping an IP address and return reachability and stats."""
@@ -54,6 +56,39 @@ def ping_test(ip_address: str) -> dict:
 
 
 
+key = os.getenv("VT_API_KEY") or os.getenv("VIRUSTOTAL_API_KEY")
+VT_BASE_URL = "https://www.virustotal.com/api/v3"
+
+def web_search(query: str, type_: str = "domain") -> dict:
+    """
+    Search VirusTotal for threat intel.
+    
+    type_ can be: 'domain', 'ip_addresses', 'urls', 'file'
+    """
+    headers = {
+        "x-apikey": key
+    }
+
+    url = f"{VT_BASE_URL}/{type_}/{query}"
+    print(f"the url is: {url}")
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            return {"error": f"HTTP {resp.status_code} from VirusTotal API"}
+
+        data = resp.json()
+
+        # Simplified structured response
+        result = {
+            "id": data.get("data", {}).get("id"),
+            "type": data.get("data", {}).get("type"),
+            "attributes": data.get("data", {}).get("attributes"),
+        }
+        return result
+
+    except Exception as e:
+        return {"error": str(e)}
+
 root_agent = Agent(
     model='gemini-2.5-flash',
     name='root_agent',
@@ -102,5 +137,5 @@ Skills and Qualifications
 ·        Demonstrated passion, desire and dedication for ongoing training, development etc
 
 ·        Ability to work independently and able to work in team environment''',
-    tools = [ping_test]
+    tools = [ping_test,web_search]
 )
